@@ -1,0 +1,13 @@
+{% for comment in comments %}
+<div class="media mb-4 border p-3 shadow-sm">
+<div class="media-body">
+    <h5 class="mt-0">
+    <a
+        href="{% url 'profile' comment.author.username %}"
+        name="comment_{{ comment.id }}"
+        >{{ comment.author.username }}</a>
+    </h5>
+    {{ comment.text }}
+</div>
+</div>
+{% endfor %}

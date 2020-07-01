@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Просмотр записи{% endblock %}
+{% block header %}{% endblock %}
+{% block content %}
+
+<main role="main" class="container">
+        <div class="row">
+                {% include 'includes/card_profile.html' with profile=user count=count %}
+    
+            <div class="col-md-9">  
+                {% include 'includes/post_item.html' with post=post %}
+                {% include 'includes/comment_form.html' %}
+                {% include 'includes/post_comments.html' %}
+         </div>
+        </div>
+    </main>
+    
+{% endblock %}
