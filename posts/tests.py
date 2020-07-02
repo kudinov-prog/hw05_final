@@ -176,10 +176,13 @@ class TestPostsImages(TestCase):
                                                 'post_id': self.post.id}), 
                                         data={'text': 'post with image',
                                               'image': file})
-        self.assertFormError(response,
-                             form='form',
-                             field='image',
-                             errors='Загрузите правильное изображение. Файл, который вы загрузили, поврежден или не является изображением.')
+        self.assertFormError(
+            response,
+            form='form',
+            field='image',
+            errors='Загрузите правильное изображение. Файл, который вы' +
+            ' загрузили, поврежден или не является изображением.'
+            )
 
 
 class TestCache(TestCase):

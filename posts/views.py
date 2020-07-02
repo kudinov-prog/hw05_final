@@ -1,8 +1,9 @@
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.shortcuts import render, get_object_or_404, redirect, reverse
+from django.shortcuts import render, redirect, reverse
+from django.shortcuts import get_object_or_404, get_list_or_404
 from .forms import PostForm, CommentForm
-from .models import Post, Group, User, Comment
+from .models import Post, Group, User, Comment, Follow
 
 
 def page_not_found(request, exception):
@@ -56,13 +57,21 @@ def new_post(request):
 
 
 def profile(request, username):
-    user = get_object_or_404(User, username=username)
-    posts = Post.objects.filter(author=user)
+    author = get_object_or_404(User, username=username)
+    posts = Post.objects.filter(author=author)
     paginator = Paginator(posts, 2)
     page_number = request.GET.get('page')
     page = paginator.get_page(page_number)
+    author_follow = author.follower.all().count()
+    user_follow = author.following.all().count()
+    if Follow.objects.filter(user=request.user, author=author).exists():
+        following = True
+    else:
+        following = False
     return render(request, 'profile.html',
-                  {'page': page, 'paginator': paginator, 'profile': user})
+                  {'page': page, 'paginator': paginator,
+                   'profile': author , 'following': following,
+                   'user_follow': user_follow, 'author_follow': author_follow})
 
 
 def post_view(request, username, post_id):
@@ -101,3 +110,30 @@ def add_comment(request, username, post_id):
             comment.post = post
             comment.save()
     return redirect('post', username=username, post_id=post_id)
+
+
+@login_required
+def follow_index(request):
+    posts = Post.objects.select_related('author').filter(
+        author__following__user=request.user
+        )
+    paginator = Paginator(posts, 10)
+    page_number = request.GET.get('page')
+    page = paginator.get_page(page_number)
+    return render(request, "follow.html", {'page': page,
+                                           'paginator': paginator})
+
+
+@login_required
+def profile_follow(request, username):
+    author = get_object_or_404(User, username=username)
+    if not request.user == author:
+        Follow.objects.get_or_create(user=request.user, author=author)
+    return redirect('profile', username=username)
+
+
+@login_required
+def profile_unfollow(request, username):
+    author = get_object_or_404(User, username=username)
+    Follow.objects.filter(user=request.user, author=author).delete()
+    return redirect('profile', username=username)

@@ -5,7 +5,7 @@
 
 <main role="main" class="container">
         <div class="row">
-                {% include 'includes/card_profile.html' with profile=user count=paginator.count %}
+                {% include 'includes/card_profile.html' with count=paginator.count %}
     
             <div class="col-md-9">
                 {% for post in page %}
