@@ -268,8 +268,7 @@ class TestFollow(TestCase):
         self.client.post(
             reverse('add_comment', kwargs={'username': self.user.username,
                                            'post_id': post.id}),
-            data={'text': 'test_text'},
-            follow=True
+            data={'text': 'test_text'}
             )
         response = self.client.get(
             reverse('post', kwargs={'username': self.user.username,
@@ -282,17 +281,16 @@ class TestFollow(TestCase):
         """ Проверяет невозможность создания коментария не авторизированным
             пользователем.
         """
+        client_1 = Client()
         post = Post.objects.create(author=self.user, text='text_for_comment')
-        not_auth_user = User.objects.create(username="follow",
-                                            password="12345")
-        self.client.post(
-            reverse('add_comment', kwargs={'username': not_auth_user.username,
+        
+        client_1.post(
+            reverse('add_comment', kwargs={'username': self.user.username,
                                            'post_id': post.id}),
-            data={'text': 'test_text'},
-            follow=True
+            data={'text': 'test_text'}
             )
-        response = self.client.get(
-            reverse('post', kwargs={'username': not_auth_user.username,
+        response = client_1.get(
+            reverse('post', kwargs={'username': self.user.username,
                                     'post_id': post.id}),
             follow=True
             ) 
