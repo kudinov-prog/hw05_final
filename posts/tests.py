@@ -114,9 +114,9 @@ class TestPostsMethods(TestCase):
                 reverse('post', 
                         kwargs={'username': self.user.username, 
                                 'post_id': new_post.id})) 
-         
+
         for url in urls: 
-            self.check_post(url, 'new_text', 
+            self.check_post(url, 'new_text',
                                  new_group, 
                                  self.user)
 
@@ -188,6 +188,7 @@ class TestPostsImages(TestCase):
 class TestCache(TestCase):
 
     def setUp(self):
+        
         self.client = Client()
 
     def test_check_cache(self):
@@ -209,3 +210,90 @@ class TestCache(TestCase):
 
         response = self.client.get(reverse('index'))
         self.assertContains(response, post.text)
+
+
+class TestFollow(TestCase):
+
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create(username="my_user",
+                                        password="12345")
+        self.client.force_login(self.user)
+
+    def test_auth_user_can_follow(self):
+        """ Авторизованный пользователь может подписываться на других
+            пользователей.
+        """
+        test_user = User.objects.create(username="follow", password="12345")
+
+        self.client.get(reverse('profile_follow',
+                                kwargs={'username': test_user.username}))
+        count = self.user.follower.all().count()
+        self.assertEqual(count, 1)
+
+    def test_auth_user_can_unfollow(self):
+        """ Авторизованный пользователь может отписываться от других
+            пользователей.
+        """
+        test_user = User.objects.create(username="follow", password="12345")
+
+        self.client.get(reverse('profile_unfollow',
+                                kwargs={'username': test_user.username}))
+        count = self.user.follower.all().count()
+        self.assertEqual(count, 0)
+
+    def test_check_post_in_index(self):
+        """ Новая запись пользователя появляется в ленте тех, кто на него
+            подписан и не появляется в ленте тех, кто не подписан на него.
+        """
+        user_follower = User.objects.create(username="follow",
+                                                 password="12345")
+        user_no_follower = User.objects.create(username="no_follow",
+                                                    password="12345")
+        self.client.get(reverse('profile_follow',
+                                kwargs={'username': user_follower.username}))
+        post_user_follower = Post.objects.create(author=user_follower,
+                                   text='text_follower')
+        post_user_no_follower = Post.objects.create(author=user_no_follower,
+                                   text='text_no_follower')
+
+        response = self.client.get(reverse('follow_index'))
+        self.assertContains(response, post_user_follower.text)
+        self.assertNotContains(response, post_user_no_follower.text)
+
+    def test_auth_user_can_comment(self):
+        """ Проверяет создание авторизированным пользователем комментария
+        """
+        post = Post.objects.create(author=self.user, text='text_for_comment')
+        self.client.post(
+            reverse('add_comment', kwargs={'username': self.user.username,
+                                           'post_id': post.id}),
+            data={'text': 'test_text'},
+            follow=True
+            )
+        response = self.client.get(
+            reverse('post', kwargs={'username': self.user.username,
+                                    'post_id': post.id}),
+            follow=True
+            )
+        self.assertContains(response, 'test_text')
+
+    def test_not_auth_user_cant_comment(self):
+        """ Проверяет невозможность создания коментария не авторизированным
+            пользователем.
+        """
+        post = Post.objects.create(author=self.user, text='text_for_comment')
+        not_auth_user = User.objects.create(username="follow",
+                                            password="12345")
+        self.client.post(
+            reverse('add_comment', kwargs={'username': not_auth_user.username,
+                                           'post_id': post.id}),
+            data={'text': 'test_text'},
+            follow=True
+            )
+        response = self.client.get(
+            reverse('post', kwargs={'username': not_auth_user.username,
+                                    'post_id': post.id}),
+            follow=True
+            ) 
+        self.assertNotContains(response, 'test_text')

@@ -62,27 +62,23 @@ def profile(request, username):
     paginator = Paginator(posts, 2)
     page_number = request.GET.get('page')
     page = paginator.get_page(page_number)
-    author_follow = author.follower.all().count()
-    user_follow = author.following.all().count()
-    if Follow.objects.filter(user=request.user, author=author).exists():
+    try:
+        Follow.objects.get(author=author, user=request.user)
         following = True
-    else:
+    except:
         following = False
     return render(request, 'profile.html',
                   {'page': page, 'paginator': paginator,
-                   'profile': author , 'following': following,
-                   'user_follow': user_follow, 'author_follow': author_follow})
+                   'author': author, 'following': following})
 
 
 def post_view(request, username, post_id):
     user = get_object_or_404(User, username=username)
     post = get_object_or_404(Post, id=post_id)
     form = CommentForm()
-    count = Post.objects.filter(author=user).count()
     comments = post.comments.all()
-    return render(request, 'post.html',
-                  {'profile': user, 'post': post, 'count': count,
-                   'comments': comments, 'form': form})
+    return render(request, 'post.html', {'profile': user, 'post': post,
+                                         'comments': comments, 'form': form})
 
 
 @login_required
