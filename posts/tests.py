@@ -1,9 +1,9 @@
 from django.core.cache import cache
 from django.core.cache.utils import make_template_fragment_key
-from django.core.files.images import ImageFile
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.shortcuts import redirect, reverse
 from django.test import TestCase, Client
-from .models import Post, Group, User
+from .models import Post, Group, User, Comment
 
 
 class TestPostsMethods(TestCase):
@@ -31,7 +31,8 @@ class TestPostsMethods(TestCase):
         data = {'text': 'text', 'group': self.group.id} 
         self.client.post(reverse("new_post"), 
                          data=data, follow=True) 
-        post = Post.objects.first() 
+        post = Post.objects.first()
+        cache.clear()
         response = self.client.get(reverse('index'), follow=True) 
         check_list = (post.text, post.group.id, post.author) 
  
@@ -56,17 +57,17 @@ class TestPostsMethods(TestCase):
  
     def check_post(self, url, text, group, author): 
          
-            response = self.client.get(url, follow=True) 
-            paginator = response.context.get('paginator') 
+        response = self.client.get(url, follow=True) 
+        paginator = response.context.get('paginator') 
              
-            if paginator is not None: 
-                post = response.context['page'][0] 
-            else: 
-                post = response.context['post'] 
+        if paginator is not None: 
+            post = response.context['page'][0] 
+        else: 
+            post = response.context['post'] 
                  
-            self.assertEqual(post.text, text) 
-            self.assertEqual(post.group, group) 
-            self.assertEqual(post.author, author) 
+        self.assertEqual(post.text, text) 
+        self.assertEqual(post.group, group) 
+        self.assertEqual(post.author, author) 
  
     def test_new_post_on_all_page(self): 
         """ После публикации поста новая запись появляется на главной странице  
@@ -83,7 +84,8 @@ class TestPostsMethods(TestCase):
                         kwargs={'username': self.user.username, 
                                 'post_id': new_post.id})) 
  
-        for url in urls: 
+        for url in urls:
+            cache.clear()
             self.check_post( 
                 url, 
                 new_post.text, 
@@ -115,7 +117,8 @@ class TestPostsMethods(TestCase):
                         kwargs={'username': self.user.username, 
                                 'post_id': new_post.id})) 
 
-        for url in urls: 
+        for url in urls:
+            cache.clear()
             self.check_post(url, 'new_text',
                                  new_group, 
                                  self.user)
@@ -124,7 +127,6 @@ class TestPostsMethods(TestCase):
         """ Проверяет возвращает ли сервер код 404,
             если страница не найдена.
         """
-
         response = self.client.get("/test/")
         self.assertEqual(response.status_code, 404)
 
@@ -136,13 +138,21 @@ class TestPostsImages(TestCase):
         self.client = Client()
         self.user = User.objects.create_user(username='user',
                                              password='12345')
-        self.group = Group.objects.create(title='group', slug='group')   
-        with open('media/posts/header-91.jpg','rb') as img:
-            self.post = Post.objects.create(author=self.user,
-                                            text='text',
-                                            group=self.group,
-                                            image=ImageFile(img,
-                                                            'header-91.jpg'))       
+        self.group = Group.objects.create(title='group', slug='group')
+        small_gif = (
+            b'\x47\x49\x46\x38\x39\x61\x01\x00\x01\x00\x00\x00\x00\x21\xf9\x04'
+            b'\x01\x0a\x00\x01\x00\x2c\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02'
+            b'\x02\x4c\x01\x00\x3b'
+        )
+        uploaded = SimpleUploadedFile(
+            name='small.gif',
+            content=small_gif,
+            content_type='image/gif'
+        )
+        self.post = Post.objects.create(author=self.user,
+                                        text='text',
+                                        group=self.group,
+                                        image=uploaded)       
         self.client.force_login(self.user)
 
     def test_check_post_img(self):
@@ -170,12 +180,18 @@ class TestPostsImages(TestCase):
             self.assertContains(response, status_code=200, text='<img')
 
     def test_upload_image(self):
-        with open('media/posts/test.txt','rb') as file:
-            response = self.client.post(reverse('post_edit',
-                                        kwargs={'username': self.user.username,
-                                                'post_id': self.post.id}), 
-                                        data={'text': 'post with image',
-                                              'image': file})
+        """ Проверяет корректность загрузки изображения в форме.
+        """
+        txt = SimpleUploadedFile(
+            name='small.txt',
+            content=b'abc',
+            content_type='text/plain'
+        )
+        response = self.client.post(reverse('post_edit',
+                                    kwargs={'username': self.user.username,
+                                            'post_id': self.post.id}), 
+                                    data={'text': 'post with image',
+                                          'image': txt})
         self.assertFormError(
             response,
             form='form',
@@ -242,23 +258,29 @@ class TestFollow(TestCase):
         count = self.user.follower.all().count()
         self.assertEqual(count, 0)
 
-    def test_check_post_in_index(self):
+    def test_check_post_in_index_follow(self):
         """ Новая запись пользователя появляется в ленте тех, кто на него
-            подписан и не появляется в ленте тех, кто не подписан на него.
+            подписан.
         """
         user_follower = User.objects.create(username="follow",
-                                                 password="12345")
-        user_no_follower = User.objects.create(username="no_follow",
-                                                    password="12345")
+                                            password="12345")
+        
         self.client.get(reverse('profile_follow',
                                 kwargs={'username': user_follower.username}))
         post_user_follower = Post.objects.create(author=user_follower,
-                                   text='text_follower')
-        post_user_no_follower = Post.objects.create(author=user_no_follower,
-                                   text='text_no_follower')
-
+                                                 text='text_follower')
         response = self.client.get(reverse('follow_index'))
         self.assertContains(response, post_user_follower.text)
+
+    def test_check_post_in_index_no_follow(self):
+        """ Новая запись пользователя не появляется в ленте тех, кто на него
+            не подписан.
+        """
+        user_no_follower = User.objects.create(username="no_follow",
+                                               password="12345")
+        post_user_no_follower = Post.objects.create(author=user_no_follower,
+                                                    text='text_no_follower')
+        response = self.client.get(reverse('follow_index'))
         self.assertNotContains(response, post_user_no_follower.text)
 
     def test_auth_user_can_comment(self):
@@ -270,12 +292,8 @@ class TestFollow(TestCase):
                                            'post_id': post.id}),
             data={'text': 'test_text'}
             )
-        response = self.client.get(
-            reverse('post', kwargs={'username': self.user.username,
-                                    'post_id': post.id}),
-            follow=True
-            )
-        self.assertContains(response, 'test_text')
+        comment = Comment.objects.first()
+        self.assertEqual(comment.text, 'test_text')
 
     def test_not_auth_user_cant_comment(self):
         """ Проверяет невозможность создания коментария не авторизированным
@@ -289,9 +307,5 @@ class TestFollow(TestCase):
                                            'post_id': post.id}),
             data={'text': 'test_text'}
             )
-        response = client_1.get(
-            reverse('post', kwargs={'username': self.user.username,
-                                    'post_id': post.id}),
-            follow=True
-            ) 
-        self.assertNotContains(response, 'test_text')
+        comment= Comment.objects.first()
+        self.assertEqual(comment, None)

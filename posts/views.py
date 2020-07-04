@@ -74,7 +74,11 @@ def profile(request, username):
 
 def post_view(request, username, post_id):
     user = get_object_or_404(User, username=username)
-    post = get_object_or_404(Post, id=post_id)
+    post = get_object_or_404(
+        Post.objects.select_related('author'),
+        id=post_id,
+        author__username=username
+    )
     form = CommentForm()
     comments = post.comments.all()
     return render(request, 'post.html', {'profile': user, 'post': post,
@@ -87,8 +91,11 @@ def post_edit(request, username, post_id):
     post_url = reverse('post', args=(post.author, post_id))
     if post.author != request.user:
         return redirect(post_url)
-    form = PostForm(request.POST or None, files=request.FILES or None,
-                    instance=post)
+    form = PostForm(
+        request.POST or None,
+        files=request.FILES or None,
+        instance=post
+    )
     if form.is_valid():
         post.save()
         return redirect(post_url)
