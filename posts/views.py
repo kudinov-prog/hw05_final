@@ -74,6 +74,7 @@ def profile(request, username):
 
 def post_view(request, username, post_id):
     user = get_object_or_404(User, username=username)
+    count = Post.objects.filter(author=user) # строка добавлена
     post = get_object_or_404(
         Post.objects.select_related('author'),
         id=post_id,
@@ -82,7 +83,8 @@ def post_view(request, username, post_id):
     form = CommentForm()
     comments = post.comments.all()
     return render(request, 'post.html', {'profile': user, 'post': post,
-                                         'comments': comments, 'form': form})
+                                         'comments': comments, 'form': form,
+                                         'count': count}) # добавлено
 
 
 @login_required
